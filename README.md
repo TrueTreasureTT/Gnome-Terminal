@@ -1,11 +1,13 @@
-# Gnome Terminal Version 3.14.02
+# gnome-terminal-clone
 
-# Logo
-<img width="1408" height="768" alt="Gemini_Generated_Image_yp1qnqyp1qnqyp1q" src="https://github.com/user-attachments/assets/e2652d97-1ed0-4134-a3e4-58a198a565f5" />
-
-# Description
 A VTE and GTK-based terminal emulator mimicking Ubuntu 26.04 LTS.
 
-ATTENTION!: THIS IS GOING TO BE THE FIRST AND LAST VERSION OF GNOME TERMINAL AND YOU WILL NOT BE EXPECTING MORE UPDATES ABOUT THE TERMINAL!
+This repository includes a small example WebSocket+PTY backend and a TypeScript React frontend (xterm.js) so you can run a terminal in the browser. It also contains Docker and nginx examples for hosting on the web.
 
+Quick start (development):
 
+1. Install system deps: `bash scripts/install-deps.sh`
+2. Start backend: `make backend`
+3. Start frontend (in another shell): `make frontend`
+
+See HOSTING.md and docs/DEPLOYMENT.md for hosting and production deployment tips.
