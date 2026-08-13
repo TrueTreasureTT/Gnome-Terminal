@@ -8,4 +8,7 @@ A VTE and GTK-based terminal emulator mimicking Ubuntu 26.04 LTS.
 
 ATTENTION!: THIS IS GOING TO BE THE FIRST AND LAST VERSION OF GNOME TERMINAL AND YOU WILL NOT BE EXPECTING MORE UPDATES ABOUT THE TERMINAL!
 
+This Might come out Late September or early October!
+
+
 
