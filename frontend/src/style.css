@@ -1,0 +1,15 @@
+:root{
+  --bg: #0b0f13;
+  --muted: #6b7280;
+  --accent: #38bdf8;
+}
+
+* { box-sizing: border-box; }
+html,body,#root { height: 100%; margin: 0; background: var(--bg); color: #e6edf3; font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+
+.app { display:flex; flex-direction:column; min-height:100vh; }
+.header { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.03); background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); }
+.header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: #cbd5e1; }
+
+.main { padding: 16px; flex: 1; display:flex; gap:16px; align-items:flex-start; justify-content:center; }
+.terminal-container { width: 100%; max-width: 1100px; height: 720px; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(2,6,23,0.6); border: 1px solid rgba(255,255,255,0.03); background: #000; }
