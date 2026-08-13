@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """
-WebSocket <-> PTY bridge
-- Reads PORT from env (default 8765) so it works on PaaS like Render.
-- Accepts JSON control messages for resize, env, cwd.
-- Uses binary frames for PTY I/O.
-Security: This is a minimal demo. Do NOT expose without authentication and sandboxing.
+WebSocket <-> PTY bridge with simple token auth.
+
+Auth:
+ - If AUTH_TOKEN env is set, a connecting client MUST provide it either:
+   - as query parameter: ws://host/ws?token=THE_TOKEN
+   - or as an Authorization header: Authorization: Bearer THE_TOKEN
+
+Control messages (JSON text frames):
+ - {"type":"resize","cols":80,"rows":24}
+ - {"type":"env","key":"TERM","value":"xterm-256color"}
+ - {"type":"cwd","cwd":"/path/to/repo"}
+
+Binary frames are forwarded to the PTY and binary output is sent back.
 """
 import asyncio
 import json
@@ -12,6 +20,7 @@ import os
 import signal
 import sys
 import websockets
+from urllib.parse import urlparse, parse_qs
 from backend.pty_handler import set_pty_winsize
 
 HOST = "0.0.0.0"
@@ -19,47 +28,52 @@ PORT = int(os.environ.get("PORT", "8765"))
 DEFAULT_CWD = os.environ.get("DEFAULT_CWD", "/home/worker/repo")
 DEFAULT_SHELL = os.environ.get("SHELL", "/bin/bash")
 DEFAULT_TERM = os.environ.get("TERM", "xterm-256color")
+AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")  # if empty, auth disabled (for local only)
 
 async def handler(ws, path):
-    """
-    WS message handling:
-    - binary frames: forwarded directly to the PTY (os.write(fd, bytes))
-    - text frames: JSON control messages, e.g. {"type":"resize","cols":80,"rows":24}
-                  {"type":"env","key":"TERM","value":"xterm-256color"}
-                  {"type":"cwd","cwd":"/path/to/repo"}
-    """
-    loop = asyncio.get_running_loop()
+    # Simple auth: check query param or Authorization header
+    if AUTH_TOKEN:
+        # Query param
+        try:
+            parsed = urlparse(path)
+            qs = parse_qs(parsed.query)
+            token_ok = False
+            if "token" in qs and qs["token"] and qs["token"][0] == AUTH_TOKEN:
+                token_ok = True
+            # Header fallback
+            auth_header = ws.request_headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                if auth_header.split(" ", 1)[1] == AUTH_TOKEN:
+                    token_ok = True
+            if not token_ok:
+                try:
+                    await ws.send(json.dumps({"type":"error","message":"unauthorized"}))
+                except Exception:
+                    pass
+                await ws.close(code=4003, reason="unauthorized")
+                return
+        except Exception:
+            await ws.close(code=4003, reason="auth-check-failed")
+            return
 
-    # allow path query param ?cwd=... (optional, naive parsing)
+    # Default working dir (can be overridden by control msg before spawn if you implement handshake)
     cwd = DEFAULT_CWD
-    try:
-        if path and "?" in path:
-            q = path.split("?", 1)[1]
-            for part in q.split("&"):
-                k, _, v = part.partition("=")
-                if k == "cwd" and v:
-                    cwd = v
-    except Exception:
-        pass
 
+    loop = asyncio.get_running_loop()
     pid, fd = os.forkpty()
     if pid == 0:
-        # Child: set up environment and exec shell
+        # Child: set environment and chdir
         try:
             os.environ["TERM"] = os.environ.get("TERM", DEFAULT_TERM)
             if cwd:
                 try:
                     os.chdir(cwd)
                 except Exception:
-                    # ignore chdir failure, child will continue
                     pass
-            # exec shell
             os.execv(DEFAULT_SHELL, [DEFAULT_SHELL])
         except Exception:
-            # On failure in the child, make sure to exit so parent can handle it.
             sys.exit(1)
     else:
-        # Parent: proxy between fd and websocket
         os.set_blocking(fd, False)
 
         def pty_readable():
@@ -68,47 +82,37 @@ async def handler(ws, path):
             except OSError:
                 data = b""
             if data:
-                # Send binary frame
+                # forward as binary
                 try:
                     asyncio.create_task(ws.send(data))
                 except Exception:
                     pass
             else:
-                # EOF from pty -> close ws
                 asyncio.create_task(ws.close())
 
         loop.add_reader(fd, pty_readable)
 
         try:
             async for message in ws:
-                # websockets library presents binary frames as 'bytes' and text frames as 'str'
                 if isinstance(message, (bytes, bytearray)):
                     try:
                         os.write(fd, message)
                     except BrokenPipeError:
-                        # PTY closed
                         await ws.close()
                         break
                 else:
-                    # Text control messages (JSON) or raw text typed by client
+                    # text message: try JSON control
                     try:
                         obj = json.loads(message)
                         typ = obj.get("type")
                         if typ == "resize":
-                            cols = int(obj.get("cols", 80))
-                            rows = int(obj.get("rows", 24))
-                            set_pty_winsize(fd, rows, cols)
+                            set_pty_winsize(fd, int(obj.get("rows", 24)), int(obj.get("cols", 80)))
                         elif typ == "env":
-                            # optionally set an env var for the child process BEFORE spawn
-                            # Note: changing parent env won't affect already-spawned child,
-                            # but we support using this message prior to spawning the shell in some flows.
-                            key = obj.get("key")
-                            val = obj.get("value")
-                            if key and val:
-                                os.environ[key] = val
+                            k = obj.get("key")
+                            v = obj.get("value")
+                            if k and v:
+                                os.environ[k] = v
                         elif typ == "cwd":
-                            # attempt to chdir the pty master side has no effect on child,
-                            # but we support receiving cwd before spawning when used in handshake.
                             newcwd = obj.get("cwd")
                             if newcwd:
                                 try:
@@ -116,10 +120,9 @@ async def handler(ws, path):
                                 except Exception:
                                     pass
                         else:
-                            # fallback: write the text as keystrokes
+                            # fallback: send text to pty as keystrokes
                             os.write(fd, message.encode())
                     except json.JSONDecodeError:
-                        # Not a JSON control message; write as keystrokes
                         try:
                             os.write(fd, message.encode())
                         except BrokenPipeError:
@@ -129,7 +132,6 @@ async def handler(ws, path):
             pass
         finally:
             loop.remove_reader(fd)
-            # try to terminate child process
             try:
                 os.kill(pid, signal.SIGHUP)
             except Exception:
