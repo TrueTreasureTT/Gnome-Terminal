@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: gnome-terminal-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    branch: main
+    plan: free
+    envVars:
+      - key: AUTH_TOKEN
+        value: "<REPLACE_WITH_SECRET_OR_SET_IN_DASHBOARD>"
+      - key: DEFAULT_CWD
+        value: "/home/worker/repo"
+  - type: static
+    name: gnome-terminal-frontend
+    staticPublishPath: frontend/dist
+    buildCommand: "cd frontend && npm ci && npm run build"
+    branch: main
+    plan: free
