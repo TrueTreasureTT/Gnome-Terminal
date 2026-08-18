@@ -8,7 +8,6 @@ export default function Home(): JSX.Element {
   return (
     <main className="min-h-screen bg-black text-terminal-fg flex flex-col items-center justify-center p-4 font-mono select-none">
       <div className="max-w-4xl w-full border border-terminal-primary/40 rounded-lg overflow-hidden bg-terminal-dark shadow-2xl shadow-terminal-primary/10">
-        {/* GNOME Terminal Window Header */}
         <div className="bg-zinc-900 px-4 py-2.5 flex items-center justify-between border-b border-terminal-primary/20">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500/80 hover:bg-red-500 cursor-pointer inline-block transition-colors" />
@@ -21,9 +20,7 @@ export default function Home(): JSX.Element {
           <div className="w-12" />
         </div>
 
-        {/* Main Terminal Window Content */}
         <div className="p-6 md:p-10 space-y-8">
-          {/* Terminal Greeting Banner */}
           <div className="space-y-3">
             <p className="text-terminal-primary text-sm">$ neofetch --release</p>
             <h1 className="text-4xl md:text-6xl font-bold text-terminal-primary tracking-tight terminal-glow">
@@ -34,7 +31,6 @@ export default function Home(): JSX.Element {
             </p>
           </div>
 
-          {/* Features and Stack Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-5 bg-black/80 border border-terminal-primary/40 rounded-md">
               <h2 className="text-lg font-bold text-terminal-primary mb-3 flex items-center gap-2">
@@ -83,7 +79,6 @@ export default function Home(): JSX.Element {
             </div>
           </div>
 
-          {/* Action Prompt */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Link href="/terminal" className="flex-1 sm:flex-none">
               <Button className="w-full sm:w-auto bg-terminal-primary hover:bg-terminal-secondary text-black font-mono font-bold px-8 py-2.5 transition-colors">
@@ -108,7 +103,6 @@ export default function Home(): JSX.Element {
             </Link>
           </div>
 
-          {/* Shell Footer */}
           <div className="pt-6 border-t border-terminal-primary/20 flex flex-col sm:flex-row items-center justify-between text-xs text-zinc-500 gap-2">
             <p>user@ubuntu-terminal:~$ Welcome to GNOME Terminal Clone</p>
             <p className="flex items-center gap-1">
