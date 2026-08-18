@@ -1,186 +1,45 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-
-interface HistoryEntry {
-  id: string;
-  command: string;
-  output: React.ReactNode;
-  path: string;
-}
-
-interface FSNode {
-  type: 'file' | 'directory';
-  content?: string;
-  children?: Record<string, FSNode>;
-}
+import React, { useState, useEffect } from 'react';
+import { loadServerFS, FSNode } from '../actions/fs';
 
 const HOME_PATH = ['home', 'user'];
 
-const INITIAL_FS: FSNode = {
-  type: 'directory',
-  children: {
-    home: {
-      type: 'directory',
-      children: {
-        user: {
-          type: 'directory',
-          children: {
-            'about.txt': {
-              type: 'file',
-              content: 'GNOME Terminal Clone v3.14.02 LTS\nRunning under App Router (src/app/terminal/page.tsx).',
-            },
-            projects: {
-              type: 'directory',
-              children: {},
-            },
-          },
-        },
-      },
-    },
-  },
-};
-
 export default function TerminalPage(): JSX.Element {
-  const router = useRouter();
+  const [fileSystem, setFileSystem] = useState<FSNode | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [fileSystem, setFileSystem] = useState<FSNode>(INITIAL_FS);
-  const [currentPath, setCurrentPath] = useState<string[]>(HOME_PATH);
-  const [input, setInput] = useState('');
-  const [history, setHistory] = useState<HistoryEntry[]>([
-    {
-      id: 'init-1',
-      command: 'neofetch',
-      path: '~',
-      output: (
-        <div className="text-xs sm:text-sm font-mono space-y-1 text-green-400">
-          <p className="font-bold text-emerald-400">user@gnome-terminal</p>
-          <p>-------------------</p>
-          <p><span className="text-zinc-400 font-bold">OS:</span> Ubuntu 26.04 LTS x86_64</p>
-          <p><span className="text-zinc-400 font-bold">Router:</span> App Router (next/navigation)</p>
-          <p className="pt-2 text-zinc-400">Type <span className="text-green-400 font-bold">'help'</span> for options.</p>
-        </div>
-      ),
-    },
-  ]);
-
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
+  // Load disk filesystem structure on component mount
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [history]);
-
-  const getDisplayPath = (path: string[]): string => {
-    const fullPathStr = '/' + path.join('/');
-    const homePathStr = '/' + HOME_PATH.join('/');
-    if (fullPathStr === homePathStr) return '~';
-    if (fullPathStr.startsWith(homePathStr + '/')) {
-      return '~' + fullPathStr.slice(homePathStr.length);
-    }
-    return fullPathStr || '/';
-  };
-
-  const handleCommandExecution = (rawCommand: string) => {
-    const trimmed = rawCommand.trim();
-    const entryId = Math.random().toString(36).substring(2, 9);
-    const displayPath = getDisplayPath(currentPath);
-
-    if (!trimmed) {
-      setHistory((prev) => [...prev, { id: entryId, command: '', output: null, path: displayPath }]);
-      return;
+    async function initFS() {
+      try {
+        const initialTree = await loadServerFS();
+        setFileSystem(initialTree);
+      } catch (err) {
+        console.error('Failed to load server FS:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
 
-    const args = trimmed.split(' ');
-    const mainCmd = args[0].toLowerCase();
-    let resultOutput: React.ReactNode = null;
+    initFS();
+  }, []);
 
-    switch (mainCmd) {
-      case 'help':
-        resultOutput = (
-          <div className="space-y-1 text-sm text-zinc-300 font-mono">
-            <p className="text-green-400 font-bold">Commands:</p>
-            <p><span className="text-emerald-400 w-24 inline-block font-bold">pwd</span> - Print working directory</p>
-            <p><span className="text-emerald-400 w-24 inline-block font-bold">clear</span> - Clear terminal buffer</p>
-            <p><span className="text-emerald-400 w-24 inline-block font-bold">exit</span> - Return to landing page</p>
-          </div>
-        );
-        break;
-
-      case 'pwd':
-        resultOutput = <p className="text-zinc-300">/{currentPath.join('/')}</p>;
-        break;
-
-      case 'clear':
-        setHistory([]);
-        setInput('');
-        return;
-
-      case 'exit':
-        router.push('/');
-        return;
-
-      default:
-        resultOutput = <p className="text-red-400">bash: {mainCmd}: command not found. Type 'help'.</p>;
-    }
-
-    setHistory((prev) => [
-      ...prev,
-      { id: entryId, command: trimmed, output: resultOutput, path: displayPath },
-    ]);
-  };
+  if (isLoading || !fileSystem) {
+    return (
+      <div className="min-h-screen bg-black text-green-400 font-mono flex items-center justify-center">
+        <p className="animate-pulse">$ Mounting server filesystem...</p>
+      </div>
+    );
+  }
 
   return (
-    <div
-      onClick={() => inputRef.current?.focus()}
-      className="min-h-screen bg-black text-zinc-200 flex flex-col justify-between p-2 sm:p-4 font-mono select-none cursor-text"
-    >
-      <div className="w-full max-w-6xl mx-auto border border-green-500/40 rounded-lg overflow-hidden bg-zinc-950 shadow-2xl flex flex-col flex-1 min-h-[90vh]">
-        <div className="bg-zinc-900 px-4 py-2.5 flex items-center justify-between border-b border-green-500/20">
-          <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/')} className="w-3 h-3 rounded-full bg-red-500/80 hover:bg-red-500" />
-            <span className="w-3 h-3 rounded-full bg-yellow-500/80" />
-            <span className="w-3 h-3 rounded-full bg-green-500/80" />
-          </div>
-          <span className="text-xs text-zinc-400 font-sans">{getDisplayPath(currentPath)}</span>
-          <div className="text-xs text-zinc-500 font-mono">bash</div>
-        </div>
-
-        <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4 font-mono text-sm">
-          {history.map((entry) => (
-            <div key={entry.id} className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-green-400 font-bold">user@gnome-terminal:{entry.path}$</span>
-                <span className="text-zinc-100">{entry.command}</span>
-              </div>
-              {entry.output && <div className="pl-2 pt-1">{entry.output}</div>}
-            </div>
-          ))}
-
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-green-400 font-bold whitespace-nowrap">
-              user@gnome-terminal:{getDisplayPath(currentPath)}$
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleCommandExecution(input);
-                  setInput('');
-                }
-              }}
-              autoFocus
-              className="flex-1 bg-transparent border-none outline-none text-zinc-100 font-mono text-sm p-0 focus:ring-0"
-              spellCheck={false}
-              autoComplete="off"
-            />
-          </div>
-          <div ref={bottomRef} />
-        </div>
+    <div className="min-h-screen bg-black text-zinc-200 p-4 font-mono">
+      <div className="border border-green-500/40 p-4 rounded bg-zinc-950">
+        <p className="text-green-400">$ tree /home/user</p>
+        <pre className="text-xs text-zinc-300 mt-2">
+          {JSON.stringify(fileSystem.children?.home?.children?.user?.children, null, 2)}
+        </pre>
       </div>
     </div>
   );
