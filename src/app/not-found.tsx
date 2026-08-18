@@ -4,25 +4,49 @@ import { Button } from '@/components/ui/button';
 
 export default function NotFound(): JSX.Element {
   return (
-    <div className="min-h-screen bg-terminal-dark text-terminal-fg flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full text-center space-y-6">
-        <div className="space-y-4">
-          <h1 className="text-7xl font-bold text-terminal-error font-mono">404</h1>
-          <h2 className="text-3xl font-bold text-terminal-primary font-mono">Page Not Found</h2>
+    <div className="min-h-screen bg-black text-terminal-fg flex flex-col items-center justify-center p-4 font-mono select-none">
+      <div className="max-w-2xl w-full border border-terminal-primary/40 rounded-lg overflow-hidden bg-terminal-dark shadow-2xl shadow-terminal-primary/10">
+        <div className="bg-zinc-900 px-4 py-2.5 flex items-center justify-between border-b border-terminal-primary/20">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-red-500/80 hover:bg-red-500 cursor-pointer inline-block transition-colors" />
+            <span className="w-3 h-3 rounded-full bg-yellow-500/80 hover:bg-yellow-500 cursor-pointer inline-block transition-colors" />
+            <span className="w-3 h-3 rounded-full bg-green-500/80 hover:bg-green-500 cursor-pointer inline-block transition-colors" />
+          </div>
+          <span className="text-xs text-zinc-400 font-sans font-medium tracking-wide">
+            user@gnome-terminal: ~ (404_not_found)
+          </span>
+          <div className="w-12" />
         </div>
 
-        <div className="bg-terminal-light border-2 border-terminal-error p-6 rounded font-mono">
-          <p className="text-terminal-fg mb-4">user@ubuntu-terminal:~$ ls -la /this/path</p>
-          <p className="text-terminal-error">bash: ls: cannot access '/this/path': No such file or directory</p>
+        <div className="p-6 space-y-6">
+          <div className="space-y-2">
+            <p className="text-terminal-primary text-sm">$ cd /requested-path</p>
+            <h1 className="text-3xl font-bold text-terminal-error tracking-tight">
+              404: COMMAND_NOT_FOUND
+            </h1>
+          </div>
+
+          <div className="bg-black/90 border border-terminal-error/40 p-4 rounded text-sm space-y-2 text-terminal-error overflow-x-auto">
+            <p className="font-semibold">
+              bash: cd: /requested-path: No such file or directory
+            </p>
+            <p className="text-xs text-zinc-500 pt-2 border-t border-zinc-800">
+              Process exited with status 127. Target directory or route does not exist on this system.
+            </p>
+          </div>
+
+          <p className="text-zinc-400 text-sm">
+            The resource you attempted to locate could not be resolved by the shell router.
+          </p>
+
+          <div className="pt-2">
+            <Link href="/" className="block">
+              <Button className="w-full bg-terminal-primary hover:bg-terminal-secondary text-black font-mono font-bold py-2.5 transition-colors">
+                $ cd /home (Return Home)
+              </Button>
+            </Link>
+          </div>
         </div>
-
-        <p className="text-terminal-fg/80 font-mono">The page you are looking for does not exist or has been removed.</p>
-
-        <Link href="/">
-          <Button className="bg-terminal-primary hover:bg-terminal-secondary text-black font-mono font-bold px-8 py-2 w-full">
-            Return to Home
-          </Button>
-        </Link>
       </div>
     </div>
   );
