@@ -3,32 +3,78 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-// Define a root directory on the server disk to store virtual files safely
+export interface FSNode {
+  type: 'file' | 'directory';
+  content?: string;
+  children?: Record<string, FSNode>;
+}
+
 const STORAGE_ROOT = path.join(process.cwd(), 'vfs_storage');
 
-export async function writeServerFile(
-  relativePath: string,
-  content: string
-): Promise<{ success: boolean; message: string }> {
+/**
+ * Recursively scans a server directory and builds an FSNode tree structure.
+ */
+async function buildTreeFromDisk(dirPath: string): Promise<Record<string, FSNode>> {
+  const children: Record<string, FSNode> = {};
+
   try {
-    // 1. Sanitize input path to prevent directory traversal attacks (e.g., ../../../etc/passwd)
-    const sanitizedPath = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
-    const absolutePath = path.join(STORAGE_ROOT, sanitizedPath);
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-    // Ensure target path remains within the sandbox directory
-    if (!absolutePath.startsWith(STORAGE_ROOT)) {
-      return { success: false, message: 'Permission denied: Cannot write outside sandbox.' };
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        children[entry.name] = {
+          type: 'directory',
+          children: await buildTreeFromDisk(fullPath),
+        };
+      } else if (entry.isFile()) {
+        const content = await fs.readFile(fullPath, 'utf-8');
+        children[entry.name] = {
+          type: 'file',
+          content,
+        };
+      }
     }
-
-    // 2. Ensure parent directories exist on physical disk
-    const parentDir = path.dirname(absolutePath);
-    await fs.mkdir(parentDir, { recursive: true });
-
-    // 3. Write file to server disk
-    await fs.writeFile(absolutePath, content, 'utf-8');
-
-    return { success: true, message: `Saved to disk: ${sanitizedPath}` };
-  } catch (err: any) {
-    return { success: false, message: err.message || 'Disk write failed' };
+  } catch (error) {
+    console.error(`Error reading directory at ${dirPath}:`, error);
   }
+
+  return children;
+}
+
+/**
+ * Server Action to load and format initial filesystem state.
+ */
+export async function loadServerFS(): Promise<FSNode> {
+  // Ensure sandbox root exists on disk
+  try {
+    await fs.mkdir(STORAGE_ROOT, { recursive: true });
+  } catch (err) {
+    // Ignore error if directory exists
+  }
+
+  const diskTree = await buildTreeFromDisk(STORAGE_ROOT);
+
+  // Return base FS structure populated with disk contents inside /home/user/
+  return {
+    type: 'directory',
+    children: {
+      home: {
+        type: 'directory',
+        children: {
+          user: {
+            type: 'directory',
+            children: {
+              'about.txt': {
+                type: 'file',
+                content: 'GNOME Terminal Clone v3.14.02 LTS\nDisk-backed Virtual File System.',
+              },
+              ...diskTree,
+            },
+          },
+        },
+      },
+    },
+  };
 }
