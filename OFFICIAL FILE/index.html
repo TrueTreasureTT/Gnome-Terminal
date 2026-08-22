@@ -1,79 +1,18 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script type="module">import { injectIntoGlobalHook } from "/@react-refresh";
+injectIntoGlobalHook(window);
+window.$RefreshReg$ = () => {};
+window.$RefreshSig$ = () => (type) => type;</script>
+
+    <script type="module" src="/@vite/client"></script>
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="GNOME Terminal v3.14.02" />
-    <meta name="color-scheme" content="dark" />
-
-    <title>gnome-terminalv3.14.02 ~</title>
-
-    <style>
-      :root {
-        --bg-color: #000000;
-        --text-color: #ffffff;
-        --selection-bg: #ffffff;
-        --selection-color: #000000;
-        --font-mono: "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono", monospace;
-      }
-
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      html,
-      body,
-      #root {
-        width: 100%;
-        height: 100%;
-        background-color: var(--bg-color);
-        color: var(--text-color);
-        font-family: var(--font-mono);
-        overflow: hidden;
-      }
-
-      /* Custom scrollbar styling for terminal overflow */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-
-      ::-webkit-scrollbar-track {
-        background: var(--bg-color);
-      }
-
-      ::-webkit-scrollbar-thumb {
-        background: #333333;
-        border-radius: 4px;
-      }
-
-      ::-webkit-scrollbar-thumb:hover {
-        background: #555555;
-      }
-
-      /* Text selection highlighting */
-      ::selection {
-        background: var(--selection-bg);
-        color: var(--selection-color);
-      }
-
-      button,
-      input,
-      textarea {
-        font: inherit;
-        color: inherit;
-        background: transparent;
-        border: none;
-        outline: none;
-      }
-    </style>
+    <meta name="theme-color" content="#300a24" />
+    <title>Terminal</title>
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
