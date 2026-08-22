@@ -1,0 +1,78 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #1f1f1f;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: #1f1f1f; color: #fff; }
+button { font: inherit; }
+
+.app { width: 100%; height: 100%; display: flex; flex-direction: column; background: #1f1f1f; }
+.header {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #242424;
+  border-bottom: 1px solid #3b3b3b;
+  user-select: none;
+}
+.window-title { font-size: 14px; font-weight: 600; }
+.window-subtitle { font-size: 12px; color: #a7a7a7; }
+.main { min-height: 0; flex: 1; display: flex; }
+.terminal-shell { min-width: 0; min-height: 0; flex: 1; display: flex; flex-direction: column; background: #300a24; }
+
+.terminal-tabs {
+  height: 40px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 6px 0;
+  background: #242424;
+  border-bottom: 1px solid #111;
+}
+.terminal-tab, .terminal-new-tab {
+  border: 0;
+  color: #d6d6d6;
+  background: transparent;
+  cursor: pointer;
+}
+.terminal-tab {
+  min-width: 150px;
+  max-width: 260px;
+  padding: 0 8px 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 7px 7px 0 0;
+}
+.terminal-tab:hover { background: #303030; }
+.terminal-tab.active { background: #300a24; color: #fff; }
+.terminal-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-tab-close {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #aaa;
+}
+.terminal-tab-close:hover { background: #555; color: #fff; }
+.terminal-new-tab { width: 38px; font-size: 22px; border-radius: 6px; }
+.terminal-new-tab:hover { background: #383838; }
+
+.terminal-container { min-height: 0; flex: 1; overflow: hidden; padding: 8px 10px; }
+.terminal-container .xterm { width: 100%; height: 100%; }
+.terminal-container .xterm-viewport { overflow-y: auto !important; }
+.terminal-status {
+  height: 22px;
+  padding: 3px 10px;
+  background: #242424;
+  color: #a7a7a7;
+  border-top: 1px solid #3b3b3b;
+  font-size: 11px;
+}
