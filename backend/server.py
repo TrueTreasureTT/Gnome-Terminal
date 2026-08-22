@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WebSocket <-> PTY bridge for the browser GNOME Terminal UI."""
+"""WebSocket <-> PTY bridge for the browser Ubuntu-style terminal."""
 import asyncio
 import json
 import os
@@ -13,30 +13,26 @@ import websockets
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
 DEFAULT_CWD = os.environ.get("DEFAULT_CWD", os.path.expanduser("~"))
-DEFAULT_SHELL = os.environ.get("SHELL", "/bin/bash")
+DEFAULT_SHELL = os.environ.get("DEFAULT_SHELL", os.environ.get("SHELL", "/bin/bash"))
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")
 
 
 def set_pty_winsize(fd: int, rows: int, cols: int) -> None:
     rows = max(1, min(int(rows), 500))
     cols = max(1, min(int(cols), 500))
-    winsize = struct.pack("HHHH", rows, cols, 0, 0)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
 
-def authorized(ws, path: str | None) -> bool:
+def authorized(ws, path=None) -> bool:
     if not AUTH_TOKEN:
         return True
-
     token = ""
     if path and "?" in path:
-        query = path.split("?", 1)[1]
-        for item in query.split("&"):
+        for item in path.split("?", 1)[1].split("&"):
             key, _, value = item.partition("=")
             if key == "token":
                 token = value
                 break
-
     auth = ws.request_headers.get("Authorization", "")
     return token == AUTH_TOKEN or auth == f"Bearer {AUTH_TOKEN}"
 
@@ -55,17 +51,17 @@ async def handler(ws, path=None):
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
             "TERM_PROGRAM": "GNOME Terminal",
-            "TERM_PROGRAM_VERSION": "3.14.02",
+            "TERM_PROGRAM_VERSION": "3.56.0",
             "SHELL": DEFAULT_SHELL,
             "LANG": env.get("LANG", "C.UTF-8"),
+            "LC_ALL": env.get("LC_ALL", "C.UTF-8"),
         })
 
-        home = env.get("HOME", os.path.expanduser("~"))
-        cwd = DEFAULT_CWD if os.path.isdir(DEFAULT_CWD) else home
+        cwd = DEFAULT_CWD if os.path.isdir(DEFAULT_CWD) else env.get("HOME", os.path.expanduser("~"))
         try:
             os.chdir(cwd)
         except OSError:
-            os.chdir(home)
+            pass
 
         try:
             os.execvpe(DEFAULT_SHELL, [DEFAULT_SHELL, "-l"], env)
@@ -107,15 +103,18 @@ async def handler(ws, path=None):
             typ = obj.get("type")
             if typ == "resize":
                 set_pty_winsize(fd, obj.get("rows", 24), obj.get("cols", 80))
+            elif typ == "signal":
+                sig = {"INT": signal.SIGINT, "TERM": signal.SIGTERM, "HUP": signal.SIGHUP}.get(obj.get("signal"))
+                if sig:
+                    try:
+                        os.killpg(pid, sig)
+                    except ProcessLookupError:
+                        pass
             elif typ == "cwd":
                 cwd = obj.get("cwd")
                 if isinstance(cwd, str) and cwd:
-                    # Keep cwd changes inside the interactive shell.
-                    command = f"cd -- {json.dumps(cwd)}\n"
-                    os.write(fd, command.encode())
+                    os.write(fd, f"cd -- {json.dumps(cwd)}\n".encode())
             elif typ == "env":
-                # TERM/COLORTERM are safe terminal metadata. Do not expose a
-                # general environment mutation API from an unauthenticated UI.
                 key = obj.get("key")
                 value = obj.get("value")
                 if key in {"TERM", "COLORTERM"} and isinstance(value, str):
@@ -143,7 +142,7 @@ async def main():
         ping_interval=20,
         ping_timeout=20,
     ):
-        print(f"GNOME Terminal PTY server listening on ws://{HOST}:{PORT}/ws")
+        print(f"Ubuntu-style terminal PTY server listening on ws://{HOST}:{PORT}")
         await asyncio.Future()
 
 
