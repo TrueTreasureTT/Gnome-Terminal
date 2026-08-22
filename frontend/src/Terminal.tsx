@@ -1,94 +1,160 @@
-import React, { useEffect, useRef } from 'react'
-import { Terminal as XTerm } from 'xterm'
-import { FitAddon } from 'xterm-addon-fit'
-import 'xterm/css/xterm.css'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { TerminalSession } from './TerminalSession'
+import TabBar from './TabBar'
+import { shortcuts } from './shortcuts'
 
 type Props = { url: string }
 
 const Terminal: React.FC<Props> = ({ url }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const sessionsRef = useRef<TerminalSession[]>([])
+  const nextId = useRef(1)
+  const [activeId, setActiveId] = useState(0)
+  const [, forceRender] = useState(0)
 
-  useEffect(() => {
-    const term = new XTerm({
-      cursorBlink: true,
-      cursorStyle: 'block',
-      cols: 100,
-      rows: 30,
-      convertEol: false,
-      fontFamily: 'Ubuntu Mono, DejaVu Sans Mono, monospace',
-      fontSize: 14,
-      lineHeight: 1.15,
-      scrollback: 10000,
-      allowTransparency: false,
-      theme: {
-        background: '#300a24',
-        foreground: '#ffffff',
-        cursor: '#ffffff',
-        cursorAccent: '#300a24',
-        selectionBackground: '#772953',
-        black: '#171421',
-        red: '#c01c28',
-        green: '#26a269',
-        yellow: '#a2734c',
-        blue: '#12488b',
-        magenta: '#a347ba',
-        cyan: '#2aa1b3',
-        white: '#d0cfcc',
-        brightBlack: '#5e5c64',
-        brightRed: '#f66151',
-        brightGreen: '#33d17a',
-        brightYellow: '#e9ad0c',
-        brightBlue: '#2a7bde',
-        brightMagenta: '#c061cb',
-        brightCyan: '#33c7de',
-        brightWhite: '#ffffff',
-      },
+  const createSession = useCallback(() => {
+    const session = new TerminalSession(nextId.current++, url)
+    sessionsRef.current.push(session)
+    session.connect(() => forceRender((value) => value + 1))
+    session.term.onTitleChange((title) => {
+      session.title = title || 'Terminal'
+      forceRender((value) => value + 1)
     })
-
-    const fit = new FitAddon()
-    term.loadAddon(fit)
-    term.open(containerRef.current!)
-    fit.fit()
-    term.focus()
-
-    const ws = new WebSocket(url)
-    ws.binaryType = 'arraybuffer'
-
-    ws.addEventListener('open', () => {
-      ws.send(JSON.stringify({ type: 'env', key: 'TERM', value: 'xterm-256color' }))
-      ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-    })
-
-    ws.addEventListener('message', (ev) => {
-      if (typeof ev.data === 'string') {
-        term.write(ev.data)
-      } else {
-        term.write(new TextDecoder().decode(new Uint8Array(ev.data as ArrayBuffer)))
-      }
-    })
-
-    term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(new TextEncoder().encode(data).buffer)
-      }
-    })
-
-    const onResize = () => {
-      try { fit.fit() } catch {}
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
-      }
-    }
-
-    window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      ws.close()
-      term.dispose()
-    }
+    return session
   }, [url])
 
-  return <div className="terminal-container" ref={containerRef} />
+  const closeSession = useCallback((id: number) => {
+    const sessions = sessionsRef.current
+    const index = sessions.findIndex((session) => session.id === id)
+    if (index < 0) return
+
+    const [session] = sessions.splice(index, 1)
+    session.dispose()
+
+    if (sessions.length === 0) {
+      const replacement = createSession()
+      setActiveId(replacement.id)
+    } else if (activeId === id) {
+      setActiveId(sessions[Math.max(0, index - 1)].id)
+    }
+    forceRender((value) => value + 1)
+  }, [activeId, createSession])
+
+  const newSession = useCallback(() => {
+    const session = createSession()
+    setActiveId(session.id)
+    forceRender((value) => value + 1)
+  }, [createSession])
+
+  useEffect(() => {
+    const first = createSession()
+    setActiveId(first.id)
+
+    return () => {
+      sessionsRef.current.forEach((session) => session.dispose())
+      sessionsRef.current = []
+    }
+  }, [createSession])
+
+  useEffect(() => {
+    const active = sessionsRef.current.find((session) => session.id === activeId)
+    const container = containerRef.current
+    if (!active || !container) return
+
+    if (!active.term.element) active.term.open(container)
+    else if (active.term.element.parentElement !== container) container.appendChild(active.term.element)
+
+    sessionsRef.current.forEach((session) => {
+      if (session.term.element) {
+        session.term.element.style.display = session.id === activeId ? 'block' : 'none'
+      }
+    })
+
+    requestAnimationFrame(() => {
+      active.resize()
+      active.term.focus()
+    })
+  }, [activeId])
+
+  useEffect(() => {
+    const resize = () => {
+      sessionsRef.current.forEach((session) => {
+        if (session.term.element && session.term.element.style.display !== 'none') {
+          session.resize()
+        }
+      })
+    }
+
+    const observer = containerRef.current ? new ResizeObserver(resize) : null
+    if (containerRef.current && observer) observer.observe(containerRef.current)
+    window.addEventListener('resize', resize)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (shortcuts.newTab(event)) {
+        event.preventDefault()
+        newSession()
+        return
+      }
+      if (shortcuts.closeTab(event)) {
+        event.preventDefault()
+        if (activeId) closeSession(activeId)
+        return
+      }
+      if (shortcuts.copy(event)) {
+        const active = sessionsRef.current.find((session) => session.id === activeId)
+        const selection = active?.term.getSelection()
+        if (selection) {
+          event.preventDefault()
+          navigator.clipboard?.writeText(selection)
+        }
+        return
+      }
+      if (shortcuts.paste(event)) {
+        const active = sessionsRef.current.find((session) => session.id === activeId)
+        if (active) {
+          event.preventDefault()
+          navigator.clipboard?.readText().then((text) => active.term.paste(text)).catch(() => undefined)
+        }
+        return
+      }
+      if (shortcuts.zoomIn(event) || shortcuts.zoomOut(event) || shortcuts.resetZoom(event)) {
+        const active = sessionsRef.current.find((session) => session.id === activeId)
+        if (!active) return
+        event.preventDefault()
+        if (shortcuts.zoomIn(event)) active.term.options.fontSize = Math.min(32, (active.term.options.fontSize ?? 14) + 1)
+        if (shortcuts.zoomOut(event)) active.term.options.fontSize = Math.max(8, (active.term.options.fontSize ?? 14) - 1)
+        if (shortcuts.resetZoom(event)) active.term.options.fontSize = 14
+        active.resize()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeId, closeSession, newSession])
+
+  const active = sessionsRef.current.find((session) => session.id === activeId)
+
+  return (
+    <div className="terminal-shell">
+      <TabBar
+        sessions={sessionsRef.current}
+        activeId={activeId}
+        onSelect={setActiveId}
+        onClose={closeSession}
+        onNew={newSession}
+      />
+      <div className="terminal-container" ref={containerRef} />
+      <div className="terminal-status" aria-live="polite">
+        {active?.ws.readyState === WebSocket.OPEN ? 'Connected' : 'Connecting…'}
+      </div>
+    </div>
+  )
 }
 
 export default Terminal
