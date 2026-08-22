@@ -52,6 +52,7 @@ async def handler(ws, path=None):
             "COLORTERM": "truecolor",
             "TERM_PROGRAM": "GNOME Terminal",
             "SHELL": DEFAULT_SHELL,
+            "PS1": "user~$ ",
             "LANG": env.get("LANG", "C.UTF-8"),
             "LC_ALL": env.get("LC_ALL", "C.UTF-8"),
         })
