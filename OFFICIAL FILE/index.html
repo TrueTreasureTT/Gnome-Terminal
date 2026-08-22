@@ -1,21 +1,67 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <script type="module">import { injectIntoGlobalHook } from "/@react-refresh";
-injectIntoGlobalHook(window);
-window.$RefreshReg$ = () => {};
-window.$RefreshSig$ = () => (type) => type;</script>
+    <!-- Vite / React Fast Refresh -->
+    <script type="module">
+      import { injectIntoGlobalHook } from "/@react-refresh";
 
+      injectIntoGlobalHook(window);
+
+      window.$RefreshReg$ = () => {};
+      window.$RefreshSig$ = () => (type) => type;
+    </script>
+
+    <!-- Vite development client -->
     <script type="module" src="/@vite/client"></script>
 
+    <!-- Page metadata -->
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#300a24" />
-    <title>Terminal</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <meta
+      name="theme-color"
+      content="#000000"
+    />
+
+    <meta
+      name="description"
+      content="GNOME Terminal v3.14.02"
+    />
+
+    <!-- Browser tab title -->
+    <title>gnome-terminalv3.14.02 ~</title>
+
+    <!-- Black page -->
+    <style>
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #000000;
+      }
+
+      body {
+      overflow: hidden;
+      }
+      * {
+        box-sizing: border-box;
+      }
+    </style>
   </head>
   <body>
+    <!-- React application -->
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- React entry point -->
+    <script
+      type="module"
+      src="/src/main.tsx"
+    ></script>
   </body>
 </html>
-
