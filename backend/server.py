@@ -51,7 +51,6 @@ async def handler(ws, path=None):
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
             "TERM_PROGRAM": "GNOME Terminal",
-            "TERM_PROGRAM_VERSION": "3.56.0",
             "SHELL": DEFAULT_SHELL,
             "LANG": env.get("LANG", "C.UTF-8"),
             "LC_ALL": env.get("LC_ALL", "C.UTF-8"),
