@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WebSocket <-> PTY bridge running an Ubuntu 26.04-style shell."""
+"""WebSocket <-> PTY bridge for the browser Ubuntu-style terminal."""
 import asyncio
 import json
 import os
@@ -7,56 +7,66 @@ import signal
 import struct
 import fcntl
 import termios
+
 import websockets
 
-HOST = "0.0.0.0"
+HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
-DEFAULT_CWD = os.environ.get("DEFAULT_CWD", "/home/worker")
-DEFAULT_SHELL = os.environ.get("SHELL", "/bin/bash")
+DEFAULT_CWD = os.environ.get("DEFAULT_CWD", os.path.expanduser("~"))
+DEFAULT_SHELL = os.environ.get("DEFAULT_SHELL", os.environ.get("SHELL", "/bin/bash"))
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")
 
 
-def set_pty_winsize(fd, rows, cols):
-    winsize = struct.pack("HHHH", rows, cols, 0, 0)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+def set_pty_winsize(fd: int, rows: int, cols: int) -> None:
+    rows = max(1, min(int(rows), 500))
+    cols = max(1, min(int(cols), 500))
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+
+
+def authorized(ws, path=None) -> bool:
+    if not AUTH_TOKEN:
+        return True
+    token = ""
+    if path and "?" in path:
+        for item in path.split("?", 1)[1].split("&"):
+            key, _, value = item.partition("=")
+            if key == "token":
+                token = value
+                break
+    auth = ws.request_headers.get("Authorization", "")
+    return token == AUTH_TOKEN or auth == f"Bearer {AUTH_TOKEN}"
 
 
 async def handler(ws, path=None):
-    if AUTH_TOKEN:
-        token = ""
-        try:
-            query = path.split("?", 1)[1] if path and "?" in path else ""
-            for item in query.split("&"):
-                key, _, value = item.partition("=")
-                if key == "token":
-                    token = value
-        except Exception:
-            pass
-        auth = ws.request_headers.get("Authorization", "")
-        if token != AUTH_TOKEN and auth != f"Bearer {AUTH_TOKEN}":
-            await ws.close(code=4003, reason="unauthorized")
-            return
+    if not authorized(ws, path):
+        await ws.close(code=4003, reason="unauthorized")
+        return
 
     loop = asyncio.get_running_loop()
     pid, fd = os.forkpty()
 
     if pid == 0:
-        os.environ.update({
+        env = os.environ.copy()
+        env.update({
             "TERM": "xterm-256color",
             "COLORTERM": "truecolor",
-            "HOME": "/home/worker",
-            "USER": "worker",
-            "LOGNAME": "worker",
-            "SHELL": DEFAULT_SHELL,
-            "LANG": os.environ.get("LANG", "C.UTF-8"),
             "TERM_PROGRAM": "GNOME Terminal",
+            "SHELL": DEFAULT_SHELL,
+            "PS1": "user~$ ",
+            "LANG": env.get("LANG", "C.UTF-8"),
+            "LC_ALL": env.get("LC_ALL", "C.UTF-8"),
         })
+
+        cwd = DEFAULT_CWD if os.path.isdir(DEFAULT_CWD) else env.get("HOME", os.path.expanduser("~"))
         try:
-            os.chdir(DEFAULT_CWD)
+            os.chdir(cwd)
         except OSError:
-            os.chdir("/home/worker")
-        os.execv(DEFAULT_SHELL, [DEFAULT_SHELL, "-l"])
-        os._exit(1)
+            pass
+
+        try:
+            os.execvpe(DEFAULT_SHELL, [DEFAULT_SHELL, "-l"], env)
+        except OSError:
+            os._exit(127)
 
     os.set_blocking(fd, False)
 
@@ -67,7 +77,7 @@ async def handler(ws, path=None):
                 asyncio.create_task(ws.send(data))
             else:
                 asyncio.create_task(ws.close())
-        except OSError:
+        except (OSError, ValueError):
             asyncio.create_task(ws.close())
 
     loop.add_reader(fd, pty_readable)
@@ -75,27 +85,40 @@ async def handler(ws, path=None):
     try:
         async for message in ws:
             if isinstance(message, (bytes, bytearray)):
-                os.write(fd, message)
+                try:
+                    os.write(fd, message)
+                except OSError:
+                    break
                 continue
 
             try:
                 obj = json.loads(message)
             except json.JSONDecodeError:
-                os.write(fd, message.encode())
+                try:
+                    os.write(fd, message.encode())
+                except OSError:
+                    break
                 continue
 
             typ = obj.get("type")
             if typ == "resize":
-                set_pty_winsize(fd, int(obj.get("rows", 24)), int(obj.get("cols", 80)))
-            elif typ == "env":
-                key, value = obj.get("key"), obj.get("value")
-                if key and value:
-                    # Environment changes are applied to future shell commands only.
-                    os.environ[key] = value
+                set_pty_winsize(fd, obj.get("rows", 24), obj.get("cols", 80))
+            elif typ == "signal":
+                sig = {"INT": signal.SIGINT, "TERM": signal.SIGTERM, "HUP": signal.SIGHUP}.get(obj.get("signal"))
+                if sig:
+                    try:
+                        os.killpg(pid, sig)
+                    except ProcessLookupError:
+                        pass
             elif typ == "cwd":
                 cwd = obj.get("cwd")
-                if cwd:
+                if isinstance(cwd, str) and cwd:
                     os.write(fd, f"cd -- {json.dumps(cwd)}\n".encode())
+            elif typ == "env":
+                key = obj.get("key")
+                value = obj.get("value")
+                if key in {"TERM", "COLORTERM"} and isinstance(value, str):
+                    os.write(fd, f"export {key}={json.dumps(value)}\n".encode())
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
@@ -111,8 +134,15 @@ async def handler(ws, path=None):
 
 
 async def main():
-    async with websockets.serve(handler, HOST, PORT, max_size=None, ping_interval=20):
-        print(f"Ubuntu terminal PTY server running on ws://{HOST}:{PORT}/ws")
+    async with websockets.serve(
+        handler,
+        HOST,
+        PORT,
+        max_size=None,
+        ping_interval=20,
+        ping_timeout=20,
+    ):
+        print(f"Ubuntu-style terminal PTY server listening on ws://{HOST}:{PORT}")
         await asyncio.Future()
 
 

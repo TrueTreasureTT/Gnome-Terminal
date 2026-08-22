@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     util-linux \
     procps \
     iproute2 \
+    iputils-ping \
+    curl \
+    wget \
+    git \
     nano \
     vim-tiny \
     less \
@@ -28,8 +32,8 @@ COPY requirements.txt /home/worker/requirements.txt
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r /home/worker/requirements.txt
 
-COPY . /home/worker/
-RUN chown -R worker:worker /home/worker
+COPY server.py /home/worker/server.py
+RUN chown worker:worker /home/worker/server.py
 
 USER worker
 ENV HOME=/home/worker \
@@ -39,4 +43,4 @@ ENV HOME=/home/worker \
     PATH="/opt/venv/bin:/home/worker/.local/bin:${PATH}"
 
 EXPOSE 8765
-CMD ["python3", "backend/server.py"]
+CMD ["/opt/venv/bin/python", "/home/worker/server.py"]
