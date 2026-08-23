@@ -3,9 +3,12 @@ import { TerminalSession } from './TerminalSession'
 import TabBar from './TabBar'
 import { shortcuts } from './shortcuts'
 
-type Props = { url: string }
+type Props = {
+  url: string
+  onStatus?: (connected: boolean) => void
+}
 
-const Terminal: React.FC<Props> = ({ url }) => {
+const Terminal: React.FC<Props> = ({ url, onStatus }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sessionsRef = useRef<TerminalSession[]>([])
   const nextId = useRef(1)
@@ -15,13 +18,16 @@ const Terminal: React.FC<Props> = ({ url }) => {
   const createSession = useCallback(() => {
     const session = new TerminalSession(nextId.current++, url)
     sessionsRef.current.push(session)
-    session.connect(() => forceRender((value) => value + 1))
+    session.connect(
+      () => forceRender((value) => value + 1),
+      (connected) => onStatus?.(connected),
+    )
     session.term.onTitleChange((title) => {
       session.title = title || 'Terminal'
       forceRender((value) => value + 1)
     })
     return session
-  }, [url])
+  }, [url, onStatus])
 
   const closeSession = useCallback((id: number) => {
     const sessions = sessionsRef.current
@@ -53,8 +59,9 @@ const Terminal: React.FC<Props> = ({ url }) => {
     return () => {
       sessionsRef.current.forEach((session) => session.dispose())
       sessionsRef.current = []
+      onStatus?.(false)
     }
-  }, [createSession])
+  }, [createSession, onStatus])
 
   useEffect(() => {
     const active = sessionsRef.current.find((session) => session.id === activeId)
