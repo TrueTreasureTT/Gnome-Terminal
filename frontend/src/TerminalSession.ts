@@ -12,6 +12,7 @@ export class TerminalSession {
 
   constructor(id: number, url: string) {
     this.id = id
+
     this.term = new XTerm({
       cursorBlink: true,
       cursorStyle: 'block',
@@ -31,36 +32,45 @@ export class TerminalSession {
     this.term.loadAddon(this.fit)
     this.term.loadAddon(new WebLinksAddon())
 
-    // Keep the WebSocket URL exactly as supplied by the caller.
-    // For Render, this should be a public wss:// URL.
     this.ws = new WebSocket(url)
     this.ws.binaryType = 'arraybuffer'
   }
 
+  private setStatus(connected: boolean) {
+    window.dispatchEvent(
+      new CustomEvent('terminal-status', {
+        detail: { connected },
+      }),
+    )
+  }
+
   connect(onClose: () => void, onStatus?: (connected: boolean) => void) {
     const notify = (connected: boolean) => {
+      this.setStatus(connected)
       onStatus?.(connected)
-      window.dispatchEvent(
-        new CustomEvent('terminal-status', {
-          detail: { connected },
-        }),
-      )
     }
+
+    notify(false)
 
     this.ws.addEventListener('open', () => {
       notify(true)
       this.resize()
     })
 
-    this.ws.addEventListener('message', (event) => {
+    this.ws.addEventListener('message', async (event) => {
       if (typeof event.data === 'string') {
         this.term.write(event.data)
-      } else if (event.data instanceof ArrayBuffer) {
+        return
+      }
+
+      if (event.data instanceof ArrayBuffer) {
         this.term.write(new TextDecoder().decode(new Uint8Array(event.data)))
-      } else if (event.data instanceof Blob) {
-        event.data.arrayBuffer().then((buffer) => {
-          this.term.write(new TextDecoder().decode(new Uint8Array(buffer)))
-        })
+        return
+      }
+
+      if (event.data instanceof Blob) {
+        const buffer = await event.data.arrayBuffer()
+        this.term.write(new TextDecoder().decode(new Uint8Array(buffer)))
       }
     })
 
@@ -75,15 +85,20 @@ export class TerminalSession {
 
     this.term.onData((data) => {
       if (this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(new TextEncoder().encode(data).buffer)
+        this.ws.send(data)
       }
     })
   }
 
   resize() {
     if (!this.term.element) return
+
     this.fit.fit()
-    this.sendJson({ type: 'resize', cols: this.term.cols, rows: this.term.rows })
+    this.sendJson({
+      type: 'resize',
+      cols: this.term.cols,
+      rows: this.term.rows,
+    })
   }
 
   sendJson(value: object) {
