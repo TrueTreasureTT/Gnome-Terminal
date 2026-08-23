@@ -11,10 +11,20 @@ type Props = {
 const Terminal: React.FC<Props> = ({ url, onStatus }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const sessionsRef = useRef<TerminalSession[]>([])
+  const activeIdRef = useRef(0)
   const nextId = useRef(1)
   const [activeId, setActiveId] = useState(0)
   const [activeConnected, setActiveConnected] = useState(false)
   const [, forceRender] = useState(0)
+
+  const selectSession = useCallback((id: number) => {
+    activeIdRef.current = id
+    setActiveId(id)
+    const session = sessionsRef.current.find((item) => item.id === id)
+    const connected = session?.ws.readyState === WebSocket.OPEN ?? false
+    setActiveConnected(connected)
+    onStatus?.(connected)
+  }, [onStatus])
 
   const createSession = useCallback(() => {
     const session = new TerminalSession(nextId.current++, url)
@@ -22,11 +32,14 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
 
     session.connect(
       () => {
-        setActiveConnected(false)
+        if (session.id === activeIdRef.current) {
+          setActiveConnected(false)
+          onStatus?.(false)
+        }
         forceRender((value) => value + 1)
       },
       (connected) => {
-        if (session.id === activeId || sessionsRef.current.length === 1) {
+        if (session.id === activeIdRef.current) {
           setActiveConnected(connected)
           onStatus?.(connected)
         }
@@ -39,7 +52,7 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
     })
 
     return session
-  }, [url, onStatus, activeId])
+  }, [url, onStatus])
 
   const closeSession = useCallback((id: number) => {
     const sessions = sessionsRef.current
@@ -51,35 +64,30 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
 
     if (sessions.length === 0) {
       const replacement = createSession()
-      setActiveId(replacement.id)
-      setActiveConnected(false)
-    } else if (activeId === id) {
-      const replacement = sessions[Math.max(0, index - 1)]
-      setActiveId(replacement.id)
-      const connected = replacement.ws.readyState === WebSocket.OPEN
-      setActiveConnected(connected)
-      onStatus?.(connected)
+      selectSession(replacement.id)
+    } else if (activeIdRef.current === id) {
+      selectSession(sessions[Math.max(0, index - 1)].id)
     }
 
     forceRender((value) => value + 1)
-  }, [activeId, createSession, onStatus])
+  }, [createSession, selectSession])
 
   const newSession = useCallback(() => {
     const session = createSession()
-    setActiveId(session.id)
-    setActiveConnected(false)
-    onStatus?.(false)
+    selectSession(session.id)
     forceRender((value) => value + 1)
-  }, [createSession, onStatus])
+  }, [createSession, selectSession])
 
   useEffect(() => {
     const first = createSession()
+    activeIdRef.current = first.id
     setActiveId(first.id)
-    setActiveConnected(false)
+    setActiveConnected(first.ws.readyState === WebSocket.OPEN)
 
     return () => {
       sessionsRef.current.forEach((session) => session.dispose())
       sessionsRef.current = []
+      activeIdRef.current = 0
       setActiveConnected(false)
       onStatus?.(false)
     }
@@ -174,13 +182,7 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
       <TabBar
         sessions={sessionsRef.current}
         activeId={activeId}
-        onSelect={(id) => {
-          setActiveId(id)
-          const session = sessionsRef.current.find((item) => item.id === id)
-          const connected = session?.ws.readyState === WebSocket.OPEN ?? false
-          setActiveConnected(connected)
-          onStatus?.(connected)
-        }}
+        onSelect={selectSession}
         onClose={closeSession}
         onNew={newSession}
       />
