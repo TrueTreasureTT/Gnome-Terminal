@@ -10,7 +10,9 @@ import termios
 
 import websockets
 
-HOST = os.environ.get("HOST", "127.0.0.1")
+# Render requires public services to bind to 0.0.0.0 and the PORT it provides.
+# Locally, you can still override these with HOST/PORT environment variables.
+HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8765"))
 DEFAULT_CWD = os.environ.get("DEFAULT_CWD", os.path.expanduser("~"))
 DEFAULT_SHELL = os.environ.get("DEFAULT_SHELL", os.environ.get("SHELL", "/bin/bash"))
