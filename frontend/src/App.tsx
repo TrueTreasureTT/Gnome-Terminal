@@ -3,23 +3,16 @@ import Terminal from './Terminal'
 
 type Props = { backendUrl: string }
 
-type TerminalStatusEvent = CustomEvent<{ connected: boolean }>
-
 export default function App({ backendUrl }: Props) {
   const [connected, setConnected] = useState(false)
+  const [minimumTimePassed, setMinimumTimePassed] = useState(false)
 
   useEffect(() => {
-    const handleStatus = (event: Event) => {
-      const statusEvent = event as TerminalStatusEvent
-      setConnected(statusEvent.detail.connected)
-    }
-
-    window.addEventListener('terminal-status', handleStatus)
-
-    return () => {
-      window.removeEventListener('terminal-status', handleStatus)
-    }
+    const timer = window.setTimeout(() => setMinimumTimePassed(true), 1000)
+    return () => window.clearTimeout(timer)
   }, [])
+
+  const showStartup = !connected || !minimumTimePassed
 
   return (
     <div className="app">
@@ -29,21 +22,26 @@ export default function App({ backendUrl }: Props) {
       </header>
 
       <main className="main">
-        <Terminal url={backendUrl} />
+        <Terminal url={backendUrl} onStatus={setConnected} />
 
-        {!connected && (
-          <div className="startup-overlay" role="status" aria-live="polite">
-            <img
-              className="startup-logo"
-              src="/gnome-logo.svg"
-              alt="GNOME Terminal"
-            />
-            <div className="startup-title">GNOME Terminal</div>
-            <div className="startup-version">3.13.0</div>
-            <div className="chrome-spinner" aria-hidden="true" />
-            <div className="startup-text">Connecting...</div>
+        <div
+          className={`startup-overlay ${showStartup ? 'visible' : 'hidden'}`}
+          role="status"
+          aria-live="polite"
+          aria-hidden={!showStartup}
+        >
+          <img
+            className="startup-logo"
+            src="/gnome-logo.svg"
+            alt="GNOME Terminal"
+          />
+          <div className="startup-title">GNOME Terminal</div>
+          <div className="startup-version">3.13.0</div>
+          <div className="chrome-spinner" aria-hidden="true" />
+          <div className="startup-text">
+            {connected ? 'Starting...' : 'Connecting...'}
           </div>
-        )}
+        </div>
       </main>
     </div>
   )
