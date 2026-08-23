@@ -26,25 +26,53 @@ export class TerminalSession {
       scrollOnOutput: false,
       fastScrollModifier: 'alt',
     })
+
     this.fit = new FitAddon()
     this.term.loadAddon(this.fit)
     this.term.loadAddon(new WebLinksAddon())
+
+    // Keep the WebSocket URL exactly as supplied by the caller.
+    // For Render, this should be a public wss:// URL.
     this.ws = new WebSocket(url)
     this.ws.binaryType = 'arraybuffer'
   }
 
-  connect(onClose: () => void) {
+  connect(onClose: () => void, onStatus?: (connected: boolean) => void) {
+    const notify = (connected: boolean) => {
+      onStatus?.(connected)
+      window.dispatchEvent(
+        new CustomEvent('terminal-status', {
+          detail: { connected },
+        }),
+      )
+    }
+
     this.ws.addEventListener('open', () => {
-      this.sendJson({ type: 'resize', cols: this.term.cols, rows: this.term.rows })
+      notify(true)
+      this.resize()
     })
+
     this.ws.addEventListener('message', (event) => {
       if (typeof event.data === 'string') {
         this.term.write(event.data)
-      } else {
-        this.term.write(new TextDecoder().decode(new Uint8Array(event.data as ArrayBuffer)))
+      } else if (event.data instanceof ArrayBuffer) {
+        this.term.write(new TextDecoder().decode(new Uint8Array(event.data)))
+      } else if (event.data instanceof Blob) {
+        event.data.arrayBuffer().then((buffer) => {
+          this.term.write(new TextDecoder().decode(new Uint8Array(buffer)))
+        })
       }
     })
-    this.ws.addEventListener('close', onClose)
+
+    this.ws.addEventListener('error', () => {
+      notify(false)
+    })
+
+    this.ws.addEventListener('close', () => {
+      notify(false)
+      onClose()
+    })
+
     this.term.onData((data) => {
       if (this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(new TextEncoder().encode(data).buffer)
