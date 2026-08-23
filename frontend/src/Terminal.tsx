@@ -13,21 +13,33 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
   const sessionsRef = useRef<TerminalSession[]>([])
   const nextId = useRef(1)
   const [activeId, setActiveId] = useState(0)
+  const [activeConnected, setActiveConnected] = useState(false)
   const [, forceRender] = useState(0)
 
   const createSession = useCallback(() => {
     const session = new TerminalSession(nextId.current++, url)
     sessionsRef.current.push(session)
+
     session.connect(
-      () => forceRender((value) => value + 1),
-      (connected) => onStatus?.(connected),
+      () => {
+        setActiveConnected(false)
+        forceRender((value) => value + 1)
+      },
+      (connected) => {
+        if (session.id === activeId || sessionsRef.current.length === 1) {
+          setActiveConnected(connected)
+          onStatus?.(connected)
+        }
+      },
     )
+
     session.term.onTitleChange((title) => {
       session.title = title || 'Terminal'
       forceRender((value) => value + 1)
     })
+
     return session
-  }, [url, onStatus])
+  }, [url, onStatus, activeId])
 
   const closeSession = useCallback((id: number) => {
     const sessions = sessionsRef.current
@@ -40,25 +52,35 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
     if (sessions.length === 0) {
       const replacement = createSession()
       setActiveId(replacement.id)
+      setActiveConnected(false)
     } else if (activeId === id) {
-      setActiveId(sessions[Math.max(0, index - 1)].id)
+      const replacement = sessions[Math.max(0, index - 1)]
+      setActiveId(replacement.id)
+      const connected = replacement.ws.readyState === WebSocket.OPEN
+      setActiveConnected(connected)
+      onStatus?.(connected)
     }
+
     forceRender((value) => value + 1)
-  }, [activeId, createSession])
+  }, [activeId, createSession, onStatus])
 
   const newSession = useCallback(() => {
     const session = createSession()
     setActiveId(session.id)
+    setActiveConnected(false)
+    onStatus?.(false)
     forceRender((value) => value + 1)
-  }, [createSession])
+  }, [createSession, onStatus])
 
   useEffect(() => {
     const first = createSession()
     setActiveId(first.id)
+    setActiveConnected(false)
 
     return () => {
       sessionsRef.current.forEach((session) => session.dispose())
       sessionsRef.current = []
+      setActiveConnected(false)
       onStatus?.(false)
     }
   }, [createSession, onStatus])
@@ -67,6 +89,8 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
     const active = sessionsRef.current.find((session) => session.id === activeId)
     const container = containerRef.current
     if (!active || !container) return
+
+    setActiveConnected(active.ws.readyState === WebSocket.OPEN)
 
     if (!active.term.element) active.term.open(container)
     else if (active.term.element.parentElement !== container) container.appendChild(active.term.element)
@@ -143,21 +167,25 @@ const Terminal: React.FC<Props> = ({ url, onStatus }) => {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [activeId, closeSession, newSession])
 
-  const active = sessionsRef.current.find((session) => session.id === activeId)
-  const connected = active?.ws.readyState === WebSocket.OPEN
-  const status = connected ? 'Connected' : 'Disconnected'
+  const status = activeConnected ? 'Connected' : 'Disconnected'
 
   return (
     <div className="terminal-shell">
       <TabBar
         sessions={sessionsRef.current}
         activeId={activeId}
-        onSelect={setActiveId}
+        onSelect={(id) => {
+          setActiveId(id)
+          const session = sessionsRef.current.find((item) => item.id === id)
+          const connected = session?.ws.readyState === WebSocket.OPEN ?? false
+          setActiveConnected(connected)
+          onStatus?.(connected)
+        }}
         onClose={closeSession}
         onNew={newSession}
       />
       <div className="terminal-container" ref={containerRef} />
-      <div className={`terminal-status ${connected ? 'connected' : 'disconnected'}`} aria-live="polite">
+      <div className={`terminal-status ${activeConnected ? 'connected' : 'disconnected'}`} aria-live="polite">
         <span className="status-indicator" aria-hidden="true" />
         <span>Status: {status}</span>
       </div>
