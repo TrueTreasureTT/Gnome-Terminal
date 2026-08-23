@@ -79,9 +79,7 @@ const Terminal: React.FC<Props> = ({ url }) => {
   useEffect(() => {
     const resize = () => {
       sessionsRef.current.forEach((session) => {
-        if (session.term.element && session.term.element.style.display !== 'none') {
-          session.resize()
-        }
+        if (session.term.element && session.term.element.style.display !== 'none') session.resize()
       })
     }
 
@@ -139,6 +137,8 @@ const Terminal: React.FC<Props> = ({ url }) => {
   }, [activeId, closeSession, newSession])
 
   const active = sessionsRef.current.find((session) => session.id === activeId)
+  const connected = active?.ws.readyState === WebSocket.OPEN
+  const status = connected ? 'Connected' : 'Disconnected'
 
   return (
     <div className="terminal-shell">
@@ -150,8 +150,9 @@ const Terminal: React.FC<Props> = ({ url }) => {
         onNew={newSession}
       />
       <div className="terminal-container" ref={containerRef} />
-      <div className="terminal-status" aria-live="polite">
-        {active?.ws.readyState === WebSocket.OPEN ? 'Connected' : 'Connecting…'}
+      <div className={`terminal-status ${connected ? 'connected' : 'disconnected'}`} aria-live="polite">
+        <span className="status-indicator" aria-hidden="true" />
+        <span>Status: {status}</span>
       </div>
     </div>
   )
