@@ -1,4 +1,4 @@
-# Gnome Terminal Version 3.14.02
+# Gnome Terminal Version 3.13.0
 
 # Current Logo
 <img width="1408" height="768" alt="Gemini_Generated_Image_rwptc3rwptc3rwpt" src="https://github.com/user-attachments/assets/f164f007-5aab-4d1c-adfb-d3aed8484994" />
