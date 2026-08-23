@@ -32,7 +32,7 @@ export default function App({ backendUrl }: Props) {
         >
           <img
             className="startup-logo"
-            src="/gnome-logo.svg"
+            src="/gnome-terminal-logo.png"
             alt="GNOME Terminal"
           />
           <div className="startup-title">GNOME Terminal</div>
