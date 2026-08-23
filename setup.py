@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="gnome-terminal",
-    version="3.14.02",
+    version="3.13.0",
     description="A VTE and GTK-based terminal emulator mimicking Ubuntu 26.04 LTS",
     author="TrueTreasureTT",
     license="GPL-3.0",
