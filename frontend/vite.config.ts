@@ -3,16 +3,21 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendUrl = env.TERMINAL_BACKEND_URL || 'ws://127.0.0.1:8765'
+
+  // Local/Codespaces backend. In production, the browser uses
+  // VITE_TERMINAL_BACKEND_URL directly, so this proxy is only for dev.
+  const backendUrl =
+    env.TERMINAL_BACKEND_URL ||
+    env.VITE_TERMINAL_BACKEND_URL ||
+    'ws://127.0.0.1:8765'
 
   return {
     plugins: [react()],
 
     server: {
       host: '0.0.0.0',
-      // Vite uses 5173 locally. Render supplies its own PORT.
       port: Number(process.env.PORT) || 5173,
-      strictPort: true,
+      strictPort: false,
 
       proxy: {
         '/ws': {
