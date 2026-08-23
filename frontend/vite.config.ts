@@ -7,15 +7,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+
     server: {
       host: '0.0.0.0',
-      port: 5173,
+      // Vite uses 5173 locally. Render supplies its own PORT.
+      port: Number(process.env.PORT) || 5173,
       strictPort: true,
+
       proxy: {
         '/ws': {
           target: backendUrl,
           ws: true,
           changeOrigin: true,
+          secure: backendUrl.startsWith('wss://'),
         },
       },
     },
