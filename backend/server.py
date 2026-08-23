@@ -10,8 +10,7 @@ import termios
 
 import websockets
 
-# Render requires public services to bind to 0.0.0.0 and the PORT it provides.
-# Locally, you can still override these with HOST/PORT environment variables.
+# Render provides PORT. Locally these default to 0.0.0.0:8765.
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8765"))
 DEFAULT_CWD = os.environ.get("DEFAULT_CWD", os.path.expanduser("~"))
@@ -26,8 +25,10 @@ def set_pty_winsize(fd: int, rows: int, cols: int) -> None:
 
 
 def authorized(ws, path=None) -> bool:
+    """Allow all local development connections unless AUTH_TOKEN is configured."""
     if not AUTH_TOKEN:
         return True
+
     token = ""
     if path and "?" in path:
         for item in path.split("?", 1)[1].split("&"):
@@ -35,8 +36,20 @@ def authorized(ws, path=None) -> bool:
             if key == "token":
                 token = value
                 break
+
     auth = ws.request_headers.get("Authorization", "")
     return token == AUTH_TOKEN or auth == f"Bearer {AUTH_TOKEN}"
+
+
+async def health_check(path, request_headers):
+    """Give Render a normal HTTP endpoint to verify that the service is alive."""
+    if path == "/health" or path == "/health/":
+        return (
+            200,
+            [("Content-Type", "text/plain; charset=utf-8")],
+            b"ok\n",
+        )
+    return None
 
 
 async def handler(ws, path=None):
@@ -143,8 +156,10 @@ async def main():
         max_size=None,
         ping_interval=20,
         ping_timeout=20,
+        process_request=health_check,
     ):
         print(f"Ubuntu-style terminal PTY server listening on ws://{HOST}:{PORT}")
+        print(f"Health endpoint available at http://{HOST}:{PORT}/health")
         await asyncio.Future()
 
 
