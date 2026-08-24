@@ -5,14 +5,14 @@ type Props = { backendUrl: string }
 
 export default function App({ backendUrl }: Props) {
   const [connected, setConnected] = useState(false)
-  const [minimumTimePassed, setMinimumTimePassed] = useState(false)
+  const [startupFinished, setStartupFinished] = useState(false)
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setMinimumTimePassed(true), 1000)
+    // Keep the startup screen visible long enough to be seen, but never
+    // block the actual terminal if the backend is slow or unavailable.
+    const timer = window.setTimeout(() => setStartupFinished(true), 1200)
     return () => window.clearTimeout(timer)
   }, [])
-
-  const showStartup = !connected || !minimumTimePassed
 
   return (
     <div className="app">
@@ -22,13 +22,14 @@ export default function App({ backendUrl }: Props) {
       </header>
 
       <main className="main">
+        {/* The real terminal is ALWAYS mounted. The startup screen is only an overlay. */}
         <Terminal url={backendUrl} onStatus={setConnected} />
 
         <div
-          className={`startup-overlay ${showStartup ? 'visible' : 'hidden'}`}
+          className={`startup-overlay ${startupFinished ? 'hidden' : 'visible'}`}
           role="status"
           aria-live="polite"
-          aria-hidden={!showStartup}
+          aria-hidden={startupFinished}
         >
           <img
             className="startup-logo"
