@@ -15,7 +15,7 @@ THIS VERSION OF THE GNOME TERMINAL WILL COME OUT 5 SEPTEMBER 2026!
 
 **Versions:**
 
-Gnome 3.13.0 - 5 September 2026
+Gnome 3.13.0 - 3 September 2026
 Version Logo: <img width="1408" height="768" alt="Gemini_Generated_Image_rwptc3rwptc3rwpt" src="https://github.com/user-attachments/assets/ba71243c-ab27-42d4-b1be-59993c0e40fd" />
 
 
